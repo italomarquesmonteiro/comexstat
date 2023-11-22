@@ -1,0 +1,141 @@
+---
+title: ""
+description: ""
+author: 
+    - name: "Ítalo Marques-Monteiro"
+    - email: "italo.marques.monteiro@outlook.com"
+    - github: https://github.com/italomarquesmonteiro
+    - kaggle: https://www.kaggle.com/talomarquesmonteiro
+    - linkedin: linkedin.com/in/ítalo-monteiro-0b2516144
+    - lattes: http://lattes.cnpq.br/7174985368517137
+    - orcid_id: https://orcid.org/0000-0003-4367-1034
+    - affiliation: Smart Data  
+        
+date: "2023-11-20"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+comex <- readr::read_csv2("c:/Users/italo/Downloads/EXP_2023.csv") |>
+    janitor::clean_names("snake") |>
+    dplyr::glimpse()
+```
+
+
+```{r}
+ncm <- readr::read_csv2("c:/Users/italo/Downloads/NCM.csv") |>
+    janitor::clean_names("snake") |>
+    dplyr::select(co_ncm, no_ncm_por) |>
+    dplyr::glimpse()
+```
+
+
+Exemplo:
+`filter_all` irá filtrar todas as linhas
+`any_vars` escolherá qualquer coluna que satisfaça uma condição lógica
+a condição lógica é determinada por `str_detect`, que selecionará qualquer 
+célula que contenha a string tryp, sendo que (?i) indica para que não seja feita 
+diferenciação entre maiúsculas ou minúsculas nas letras de *bovin*
+```{r}
+comex_bovino <- comex |>
+    dplyr::inner_join(ncm) |>
+    dplyr::filter_all(
+        dplyr::any_vars(
+            stringr::str_detect(., pattern =
+                "(?i)bovino|carne de bovino|carcaça de bovino"))) |>
+    dplyr::glimpse()
+```
+
+
+
+```{r}
+pais <- readr::read_csv2("c:/Users/italo/Downloads/PAIS.csv") |>
+    janitor::clean_names("snake") |>
+    dplyr::select(co_pais, no_pais_ing) |>
+    dplyr::glimpse()
+```
+
+
+
+```{r}
+comex_bovino <- comex_bovino |>
+    dplyr::inner_join(pais) |>
+    dplyr::select(
+        co_mes, co_ncm, no_ncm_por, no_pais_ing, sg_uf_ncm, kg_liquido, vl_fob
+    ) |>
+    dplyr::glimpse()
+```
+
+```{r}
+comex_carne <- comex_bovino |>
+    dplyr::filter(co_ncm %in% c("02023000", "02013000", "02021000", "02011000"))
+```
+
+```{r}
+world <- rnaturalearth::ne_countries(
+    scale = 110,
+        type = "countries",
+            returnclass = "sf"
+    ) |>
+    dplyr::select(name_long) |>
+    dplyr::glimpse()
+
+```
+
+
+```{r}
+comex_world <- world |>
+    dplyr::full_join(comex_carne, by = c("name_long" = "no_pais_ing"))
+```
+
+
+```{r}
+# map
+world <- rnaturalearth::ne_countries(scale = 110, type = "countries", returnclass = "sf")%>%
+  mutate(un_a3=case_when(
+    name=="Norway"~'578',
+    name=='Malta'~'470',
+    name=='Singapore'~'702',
+    TRUE~un_a3
+  ))
+
+cent <- world%>%
+  # Convert WGS84 to projected crs (here Robinson)
+  sf::st_transform(crs="ESRI:54030")%>%
+  #sf::st_transform(crs="+proj=eck6")%>%
+  sf::st_centroid()
+# Convert WGS84 to projected crs (here Robinson)
+#sf::st_transform(crs="EPSG:4326")
+
+
+
+# M49 code for Brazil==076
+
+cent_with_coord<-cent%>%
+  dplyr::bind_cols(sf::st_coordinates(cent))%>%
+  sf::st_drop_geometry()
+
+sf::st_coordinates(lns)
+
+
+ggplot(world)+
+  geom_sf()+
+  geom_sf(
+    cent%>%filter(admin=="Brazil"),
+    mapping=aes(geometry=geometry)
+  )+
+  geom_sf(
+    cent%>%filter(admin=="Germany"),
+    mapping=aes(geometry=geometry)
+  )+
+  geom_sf(
+    lns,mapping=aes(geometry=geometry)
+  )
+```
+
+
+
