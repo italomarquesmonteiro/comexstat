@@ -21,9 +21,22 @@ library(tidyverse)
 
 ```{r}
 comex <- readr::read_csv2("c:/Users/italo/Downloads/EXP_2023.csv") |>
-    janitor::clean_names("snake") |>
+  janitor::clean_names("snake") |>
+  dplyr::select(co_ncm, co_pais, kg_liquido, vl_fob) |>
+  dplyr::filter(
+    co_ncm %in% c(
+      "02023000", "02013000", "02021000", "02011000"
+    )
+  ) |>
+  dplyr::group_by(co_ncm, co_pais) |>
+  dplyr::summarise(
+    tot_kg = sum(kg_liquido),
+    tot_valor = sum(vl_fob)
+  ) |>
     dplyr::glimpse()
 ```
+
+
 
 
 ```{r}
@@ -62,79 +75,36 @@ pais <- readr::read_csv2("c:/Users/italo/Downloads/PAIS.csv") |>
 
 
 ```{r}
-comex_bovino <- comex_bovino |>
-    dplyr::inner_join(pais) |>
-    dplyr::select(
-        co_mes, co_ncm, no_ncm_por, no_pais_ing, sg_uf_ncm, kg_liquido, vl_fob
-    ) |>
-    dplyr::glimpse()
-```
-
-```{r}
 comex_carne <- comex_bovino |>
-    dplyr::filter(co_ncm %in% c("02023000", "02013000", "02021000", "02011000"))
-```
-
-```{r}
-world <- rnaturalearth::ne_countries(
-    scale = 110,
-        type = "countries",
-            returnclass = "sf"
-    ) |>
-    dplyr::select(name_long) |>
+    dplyr::inner_join(pais) |>
     dplyr::glimpse()
-
 ```
 
 
 ```{r}
-comex_world <- world |>
-    dplyr::full_join(comex_carne, by = c("name_long" = "no_pais_ing"))
+carne_desossada_congeladas <- comex_carne |> 
+  dplyr::filter(no_ncm_por == "Carnes desossadas de bovino, congeladas") |>
+  dplyr::arrange(desc(tot_valor))
 ```
 
 
 ```{r}
-# map
-world <- rnaturalearth::ne_countries(scale = 110, type = "countries", returnclass = "sf")%>%
-  mutate(un_a3=case_when(
-    name=="Norway"~'578',
-    name=='Malta'~'470',
-    name=='Singapore'~'702',
-    TRUE~un_a3
-  ))
-
-cent <- world%>%
-  # Convert WGS84 to projected crs (here Robinson)
-  sf::st_transform(crs="ESRI:54030")%>%
-  #sf::st_transform(crs="+proj=eck6")%>%
-  sf::st_centroid()
-# Convert WGS84 to projected crs (here Robinson)
-#sf::st_transform(crs="EPSG:4326")
-
-
-
-# M49 code for Brazil==076
-
-cent_with_coord<-cent%>%
-  dplyr::bind_cols(sf::st_coordinates(cent))%>%
-  sf::st_drop_geometry()
-
-sf::st_coordinates(lns)
-
-
-ggplot(world)+
-  geom_sf()+
-  geom_sf(
-    cent%>%filter(admin=="Brazil"),
-    mapping=aes(geometry=geometry)
-  )+
-  geom_sf(
-    cent%>%filter(admin=="Germany"),
-    mapping=aes(geometry=geometry)
-  )+
-  geom_sf(
-    lns,mapping=aes(geometry=geometry)
+carne_desossada_congeladas <- carne_desossada_congeladas |>
+    dplyr::mutate(
+        color = case_when(
+          row_number() == 1 ~ "goldenrod1",
+          row_number() == 2 ~ "mediumpurple1",
+          row_number() == 3 ~ "coral2",
+          ## all others should be gray
+          TRUE ~ "gray70"
+        )
   )
+
+carne_desossada_congeladas |>
+  dplyr::filter(tot_valor >= 18040494) |>
+  ggplot(aes(x = tot_valor, y = reorder(no_pais_ing, tot_valor), fill = color)) +
+    geom_col() +
+    scale_fill_identity(guide = "none")
 ```
 
 
